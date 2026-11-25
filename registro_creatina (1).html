@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de creatina</title>
+<style>
+:root{color-scheme:dark;--bg:#10151d;--panel:#192230;--panel2:#202c3c;--text:#eef3f8;--muted:#9eacbd;--accent:#70b7ff;--green:#42c98a;--line:#304052;--red:#ff7777}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0%,#1d3044 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:24px}
+main{max-width:850px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:clamp(25px,5vw,34px);margin:0}.sub{color:var(--muted);margin:5px 0 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 12px 35px #0002}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{background:var(--panel2);border-radius:13px;padding:13px}.stat strong{display:block;font-size:25px}.stat span{color:var(--muted);font-size:12px}
+.toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}.month{font-weight:700;font-size:19px;text-transform:capitalize}
+button,input{font:inherit}button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:10px;padding:9px 13px;cursor:pointer}button:hover{border-color:var(--accent)}button.primary{background:var(--accent);border-color:var(--accent);color:#081522;font-weight:700}button.danger{color:var(--red)}
+.week,.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:7px}.week div{text-align:center;color:var(--muted);font-size:12px;padding:5px 0}
+.day{min-height:68px;position:relative;padding:8px 5px;display:flex;flex-direction:column;align-items:center;gap:4px;border-radius:11px;background:var(--panel2);border:1px solid transparent}
+.day.empty{background:transparent}.day .num{font-weight:600}.day .mark{font-size:11px;color:var(--green);font-weight:700}.day.taken{background:#173c34;border-color:#2e896b}.day.today{outline:2px solid var(--accent);outline-offset:1px}.day.selected{border-color:#fff}.day:disabled{opacity:.35;cursor:default}
+.legend{display:flex;gap:15px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:12px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--green);margin-right:5px}
+.formrow{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:145px}.field label{font-size:12px;color:var(--muted)}input{width:100%;background:#111a25;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px}
+.note{color:var(--muted);font-size:12px;margin:12px 0 0}.selectedline{margin:12px 0;color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+@media(max-width:520px){body{padding:14px}.card{padding:14px}.day{min-height:57px;padding:6px 2px}.day .mark{font-size:9px}.stats{gap:6px}.stat{padding:10px}.stat strong{font-size:21px}}
+</style>
+</head>
+<body>
+<main>
+ <header class="top"><div><h1>Registro de creatina</h1><p class="sub">Marcá cada día que tomes tu dosis.</p></div><button id="todayBtn">Ir a hoy</button></header>
+ <section class="card">
+  <div class="stats">
+   <div class="stat"><strong id="total">0</strong><span>Días registrados</span></div>
+   <div class="stat"><strong id="monthTotal">0</strong><span>Este mes</span></div>
+   <div class="stat"><strong id="streak">0</strong><span>Racha actual (días)</span></div>
+  </div>
+ </section>
+ <section class="card">
+  <div class="toolbar"><button id="prev" aria-label="Mes anterior">‹</button><div class="month" id="monthLabel"></div><button id="next" aria-label="Mes siguiente">›</button></div>
+  <div class="week"><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div></div>
+  <div class="calendar" id="calendar"></div>
+  <div class="legend"><span><i class="dot"></i>Día registrado</span><span>Contorno azul: hoy</span></div>
+  <p class="selectedline" id="selectedText">Seleccioná un día del calendario.</p>
+  <div class="actions"><button class="primary" id="toggleBtn">Marcar toma</button><button id="clearBtn" class="danger">Quitar marca</button></div>
+ </section>
+ <section class="card">
+  <h2 style="font-size:18px;margin:0 0 12px">Respaldo de datos</h2>
+  <div class="actions" style="margin-top:0"><button id="exportBtn">Exportar respaldo</button><button id="importBtn">Importar respaldo</button><input type="file" id="fileInput" accept=".json,application/json" hidden></div>
+  <p class="note">Los registros se guardan automáticamente en este navegador (almacenamiento local). Si borrás los datos del navegador o cambiás de dispositivo, podés perderlos: exportá un respaldo JSON para conservarlos y luego importarlo.</p>
+ </section>
+ <p class="note" style="text-align:center">Este calendario es solo un registro personal; no reemplaza las indicaciones de un profesional de salud.</p>
+</main>
+<script>
+(() => {
+ const KEY='creatina_tracker_v1';
+ let taken=new Set();
+ try { const saved=JSON.parse(localStorage.getItem(KEY)||'[]'); if(Array.isArray(saved)) taken=new Set(saved.filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x))); } catch(e){}
+ const $=id=>document.getElementById(id);
+ function pad(n){return String(n).padStart(2,'0')}
+ function keyOf(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+ const now=new Date(); let view=new Date(now.getFullYear(),now.getMonth(),1);
+ let selected=keyOf(now);
+ function parseKey(s){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
+ function save(){
+  try { localStorage.setItem(KEY,JSON.stringify([...taken].sort())); }
+  catch(e) { alert('No se pudo guardar en este navegador. Exportá un respaldo para conservar tus registros.'); }
+ }
+ function render(){
+  $('monthLabel').textContent=new Intl.DateTimeFormat('es-AR',{month:'long',year:'numeric'}).format(view);
+  const cal=$('calendar');cal.innerHTML='';
+  const first=new Date(view.getFullYear(),view.getMonth(),1);
+  const offset=(first.getDay()+6)%7, days=new Date(view.getFullYear(),view.getMonth()+1,0).getDate();
+  for(let i=0;i<offset;i++){const e=document.createElement('div');e.className='day empty';cal.append(e)}
+  for(let n=1;n<=days;n++){
+   const d=new Date(view.getFullYear(),view.getMonth(),n),k=keyOf(d),b=document.createElement('button');
+   b.className='day'+(taken.has(k)?' taken':'')+(k===keyOf(now)?' today':'')+(k===selected?' selected':'');
+   b.innerHTML=`<span class="num">${n}</span>${taken.has(k)?'<span class="mark">✓ Tomada</span>':''}`;
+   b.setAttribute('aria-label',`${n}, ${taken.has(k)?'toma registrada':'sin registro'}`);
+   b.addEventListener('click',()=>{selected=k;render()});cal.append(b);
+  }
+  $('selectedText').textContent=`Día seleccionado: ${new Intl.DateTimeFormat('es-AR',{dateStyle:'full'}).format(parseKey(selected))} · ${taken.has(selected)?'toma registrada':'sin registro'}`;
+  $('toggleBtn').textContent=taken.has(selected)?'Desmarcar toma':'Marcar toma';
+  $('clearBtn').disabled=!taken.has(selected);
+  $('total').textContent=taken.size;
+  const prefix=`${view.getFullYear()}-${pad(view.getMonth()+1)}-`;
+  $('monthTotal').textContent=[...taken].filter(k=>k.startsWith(prefix)).length;
+  let streak=0,cur=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  // La racha cuenta desde hoy, o desde ayer si todavía no se registró la toma de hoy.
+  if(!taken.has(keyOf(cur)))cur.setDate(cur.getDate()-1);
+  while(taken.has(keyOf(cur))){streak++;cur.setDate(cur.getDate()-1)}
+  $('streak').textContent=streak;
+ }
+ $('prev').onclick=()=>{view.setMonth(view.getMonth()-1);render()};
+ $('next').onclick=()=>{view.setMonth(view.getMonth()+1);render()};
+ $('todayBtn').onclick=()=>{const today=new Date();view=new Date(today.getFullYear(),today.getMonth(),1);selected=keyOf(today);render()};
+ $('toggleBtn').onclick=()=>{taken.has(selected)?taken.delete(selected):taken.add(selected);save();render()};
+ $('clearBtn').onclick=()=>{taken.delete(selected);save();render()};
+ $('exportBtn').onclick=()=>{
+  const blob=new Blob([JSON.stringify({app:'Registro de creatina',version:1,dates:[...taken].sort()},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='registro-creatina-respaldo.json';a.click();URL.revokeObjectURL(a.href);
+ };
+ $('importBtn').onclick=()=>$('fileInput').click();
+ $('fileInput').onchange=async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{const data=JSON.parse(await file.text());const dates=Array.isArray(data)?data:data.dates;
+   if(!Array.isArray(dates)||!dates.every(x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)))throw Error();
+   if(confirm('¿Querés reemplazar tus registros actuales con los del archivo?')){taken=new Set(dates);save();render()}
+  }catch(err){alert('El archivo no tiene un formato válido de respaldo.')}
+  e.target.value='';
+ };
+ render();
+})();
+</script>
+</body>
+</html>
